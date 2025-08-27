@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Realistic Boxing Game</title>
+<title>Realistic Boxing Game with Movement</title>
 <style>
   canvas {
     background: #222;
@@ -22,9 +22,11 @@
 </style>
 </head>
 <body>
-<h1>Realistic Boxing Game</h1>
-<p>Player 1: A (Punch), S (Dodge), D (Counter)<br />
-Player 2: J (Punch), K (Dodge), L (Counter)</p>
+<h1>Realistic Boxing Game with Movement</h1>
+<p>
+  Player 1: Z (Left), C (Right), A (Punch), S (Dodge), D (Counter)<br />
+  Player 2: , (Left), . (Right), J (Punch), K (Dodge), L (Counter)
+</p>
 <canvas id="game" width="600" height="300"></canvas>
 <div id="status"></div>
 
@@ -47,9 +49,13 @@ class Boxer {
     this.controls = controls;
     this.canCounter = false;
 
-    // Animation params for arms/head positions
-    this.armAngle = 0; // arm rotation for punch/counter
-    this.headOffsetY = 0; // head bobbing for dodge/hit
+    this.armAngle = 0;
+    this.headOffsetY = 0;
+
+    // Movement
+    this.speed = 3;
+    this.vx = 0; // velocity x
+    this.width = 30; // approximate width for collision
   }
 
   draw() {
@@ -59,8 +65,6 @@ class Boxer {
     // Flip if facing left
     ctx.scale(this.facing, 1);
 
-    // Draw body
-    ctx.fillStyle = this.color;
     ctx.lineWidth = 3;
     ctx.strokeStyle = "white";
 
@@ -78,10 +82,6 @@ class Boxer {
     ctx.lineTo(15, 110);
     ctx.stroke();
 
-    // Draw arms (animated)
-    ctx.save();
-    ctx.lineCap = "round";
-
     // Left arm (always at side)
     ctx.beginPath();
     ctx.moveTo(0, 30);
@@ -89,6 +89,8 @@ class Boxer {
     ctx.stroke();
 
     // Right arm (punch/counter)
+    ctx.save();
+    ctx.lineCap = "round";
     ctx.translate(0, 30);
     if (this.state === "punch" || this.state === "counter") {
       ctx.rotate(this.armAngle);
@@ -97,20 +99,18 @@ class Boxer {
       ctx.lineTo(40, 0);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(40, 0, 7, 0, Math.PI * 2); // fist
+      ctx.arc(40, 0, 7, 0, Math.PI * 2);
       ctx.fillStyle = this.color;
       ctx.fill();
       ctx.strokeStyle = "white";
       ctx.stroke();
     } else if (this.state === "dodge") {
-      // arms crossed low
       ctx.rotate(-Math.PI / 4);
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(20, 10);
       ctx.stroke();
     } else {
-      // normal arm relaxed
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(20, 20);
@@ -118,7 +118,7 @@ class Boxer {
     }
     ctx.restore();
 
-    // Draw head (circle)
+    // Head
     ctx.beginPath();
     ctx.fillStyle = this.color;
     ctx.strokeStyle = "white";
@@ -127,10 +127,9 @@ class Boxer {
     ctx.fill();
     ctx.stroke();
 
-    // Eyes for some expression
+    // Eyes
     ctx.fillStyle = "black";
     if (this.state === "hit") {
-      // Closed eyes (lines)
       ctx.beginPath();
       ctx.moveTo(-6, this.headOffsetY - 18);
       ctx.lineTo(-2, this.headOffsetY - 14);
@@ -138,7 +137,6 @@ class Boxer {
       ctx.lineTo(6, this.headOffsetY - 18);
       ctx.stroke();
     } else {
-      // Open eyes
       ctx.beginPath();
       ctx.arc(-6, this.headOffsetY - 18, 2, 0, Math.PI * 2);
       ctx.arc(6, this.headOffsetY - 18, 2, 0, Math.PI * 2);
@@ -155,17 +153,16 @@ class Boxer {
     this.armAngle = 0;
     this.canCounter = false;
 
-    // Check if opponent is not dodging and in range
+    // Check if opponent is in punch range and vulnerable
     const dist = Math.abs(this.x - opponent.x);
     if (
-      dist < 80 &&
+      dist < 70 && // smaller range for realistic punch
       opponent.state !== "dodge" &&
       opponent.state !== "counter" &&
       opponent.state !== "hit"
     ) {
       opponent.getHit(10);
     } else if (opponent.state === "dodge") {
-      // Opponent can counter now
       opponent.canCounter = true;
     }
   }
@@ -184,27 +181,37 @@ class Boxer {
     this.stateTimer = 20;
     this.canCounter = false;
 
-    // If opponent is punching, counter hits
     if (opponent.state === "punch") {
       opponent.getHit(15);
     }
   }
 
   getHit(damage) {
-    if (this.state === "dodge") {
-      // Dodged, no damage
-      return;
-    }
+    if (this.state === "dodge") return; // dodged
+
     this.health -= damage;
     this.state = "hit";
     this.stateTimer = 15;
   }
 
   update() {
+    // Movement update
+    this.x += this.vx;
+
+    // Prevent leaving canvas bounds
+    this.x = Math.min(Math.max(this.x, 40), WIDTH - 40);
+
+    // Prevent passing through opponent (simple collision)
+    if (this === player1 && this.x + this.width > player2.x - player2.width) {
+      this.x = player2.x - player2.width - this.width;
+    }
+    if (this === player2 && this.x - this.width < player1.x + player1.width) {
+      this.x = player1.x + player1.width + this.width;
+    }
+
     if (this.stateTimer > 0) {
       this.stateTimer--;
 
-      // Animate punch arm extending and retracting
       if (this.state === "punch" || this.state === "counter") {
         if (this.stateTimer > 10) {
           this.armAngle += 0.1;
@@ -213,7 +220,6 @@ class Boxer {
         }
       }
 
-      // Animate dodge head bob
       if (this.state === "dodge") {
         this.headOffsetY = (this.stateTimer % 10) < 5 ? 5 : 10;
       } else if (this.state === "hit") {
@@ -224,7 +230,7 @@ class Boxer {
 
       if (this.stateTimer === 0) {
         if (this.state === "dodge") {
-          this.canCounter = false; // reset counter chance after dodge ends
+          this.canCounter = false;
         }
         this.state = "idle";
         this.armAngle = 0;
@@ -238,35 +244,32 @@ const player1 = new Boxer(150, HEIGHT - 130, "red", {
   punch: "a",
   dodge: "s",
   counter: "d",
+  left: "z",
+  right: "c",
 });
 const player2 = new Boxer(WIDTH - 150, HEIGHT - 130, "blue", {
   punch: "j",
   dodge: "k",
   counter: "l",
+  left: ",",
+  right: ".",
 });
 
 const keysDown = new Set();
 
 window.addEventListener("keydown", (e) => {
-  keysDown.add(e.key.toLowerCase());
+  const key = e.key.toLowerCase();
+  keysDown.add(key);
 
   // Player 1 controls
-  if (e.key.toLowerCase() === player1.controls.punch) {
-    player1.punch(player2);
-  } else if (e.key.toLowerCase() === player1.controls.dodge) {
-    player1.dodge();
-  } else if (e.key.toLowerCase() === player1.controls.counter) {
-    player1.counter(player2);
-  }
+  if (key === player1.controls.punch) player1.punch(player2);
+  else if (key === player1.controls.dodge) player1.dodge();
+  else if (key === player1.controls.counter) player1.counter(player2);
 
   // Player 2 controls
-  if (e.key.toLowerCase() === player2.controls.punch) {
-    player2.punch(player1);
-  } else if (e.key.toLowerCase() === player2.controls.dodge) {
-    player2.dodge();
-  } else if (e.key.toLowerCase() === player2.controls.counter) {
-    player2.counter(player1);
-  }
+  if (key === player2.controls.punch) player2.punch(player1);
+  else if (key === player2.controls.dodge) player2.dodge();
+  else if (key === player2.controls.counter) player2.counter(player1);
 });
 
 window.addEventListener("keyup", (e) => {
@@ -289,6 +292,26 @@ function gameOver(winner) {
 }
 
 function update() {
+  // Update velocities based on keys pressed
+
+  // Player 1 movement
+  if (keysDown.has(player1.controls.left)) {
+    player1.vx = -player1.speed;
+  } else if (keysDown.has(player1.controls.right)) {
+    player1.vx = player1.speed;
+  } else {
+    player1.vx = 0;
+  }
+
+  // Player 2 movement
+  if (keysDown.has(player2.controls.left)) {
+    player2.vx = -player2.speed;
+  } else if (keysDown.has(player2.controls.right)) {
+    player2.vx = player2.speed;
+  } else {
+    player2.vx = 0;
+  }
+
   player1.update();
   player2.update();
 }
