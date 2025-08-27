@@ -1,66 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Boxing Match Simulator</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Boxing Game</title>
+<style>
+  canvas {
+    background: #222;
+    display: block;
+    margin: 20px auto;
+    border: 3px solid #555;
+  }
+  body {
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+  #status {
+    margin-top: 10px;
+  }
+</style>
 </head>
 <body>
-  <h1>Boxing Match Simulator</h1>
-  <pre id="output"></pre>
+<h1>Simple Boxing Game</h1>
+<p>Player 1: A (Punch), S (Dodge), D (Counter)<br />
+Player 2: J (Punch), K (Dodge), L (Counter)</p>
+<canvas id="game" width="600" height="300"></canvas>
+<div id="status"></div>
 
-  <script>
-    const output = document.getElementById("output");
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    class Boxer {
-      constructor(name, health, power) {
-        this.name = name;
-        this.health = health;
-        this.power = power;
-      }
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
 
-      punch(opponent) {
-        const damage = Math.floor(Math.random() * this.power) + 1;
-        opponent.health -= damage;
-        log(`${this.name} punches ${opponent.name} for ${damage} damage!`);
-      }
+class Boxer {
+  constructor(x, y, color, controls) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.width = 40;
+    this.height = 80;
+    this.health = 100;
+    this.state = "idle"; // idle, punch, dodge, counter, hit
+    this.stateTimer = 0;
+    this.facing = x < WIDTH / 2 ? 1 : -1; // 1 = right, -1 = left
+    this.controls = controls;
+    this.canCounter = false;
+  }
 
-      isKnockedOut() {
-        return this.health <= 0;
-      }
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+
+    // Draw face
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(this.x + this.width / 2, this.y + 20, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw arms (show punch or counter)
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    if (this.state === "punch" || this.state === "counter") {
+      // punch arm extended
+      const armX = this.x + (this.facing > 0 ? this.width + 20 : -20);
+      const armY = this.y + 40;
+      ctx.moveTo(this.x + this.width / 2, this.y + 40);
+      ctx.lineTo(armX, armY);
+    } else if (this.state === "dodge") {
+      // arms down
+      ctx.moveTo(this.x + this.width / 2 - 10, this.y + 40);
+      ctx.lineTo(this.x + this.width / 2 + 10, this.y + 40);
+    } else {
+      // normal arm position
+      ctx.moveTo(this.x + this.width / 2, this.y + 40);
+      ctx.lineTo(this.x + this.facing * 10 + this.width / 2, this.y + 40);
     }
+    ctx.stroke();
+  }
 
-    function log(text) {
-      output.textContent += text + "\n";
+  punch(opponent) {
+    if (this.state !== "idle") return;
+    this.state = "punch";
+    this.stateTimer = 20;
+    this.canCounter = false;
+
+    // Check if opponent is not dodging and in range
+    const dist = Math.abs(this.x - opponent.x);
+    if (
+      dist < 80 &&
+      opponent.state !== "dodge" &&
+      opponent.state !== "counter" &&
+      opponent.state !== "hit"
+    ) {
+      opponent.getHit(10);
+    } else if (opponent.state === "dodge") {
+      // Opponent can counter now
+      opponent.canCounter = true;
     }
+  }
 
-    function simulateFight(boxer1, boxer2) {
-      log(`🥊 Fight starts: ${boxer1.name} vs. ${boxer2.name}\n`);
-      let round = 1;
+  dodge() {
+    if (this.state !== "idle") return;
+    this.state = "dodge";
+    this.stateTimer = 30;
+    this.canCounter = false;
+  }
 
-      while (!boxer1.isKnockedOut() && !boxer2.isKnockedOut()) {
-        log(`-- Round ${round} --`);
-        
-        if (Math.random() < 0.5) {
-          boxer1.punch(boxer2);
-        } else {
-          boxer2.punch(boxer1);
+  counter(opponent) {
+    if (this.state !== "idle") return;
+    if (!this.canCounter) return;
+    this.state = "counter";
+    this.stateTimer = 20;
+    this.canCounter = false;
+
+    // If opponent is punching, counter hits
+    if (opponent.state === "punch") {
+      opponent.getHit(15);
+    }
+  }
+
+  getHit(damage) {
+    if (this.state === "dodge") {
+      // Dodged, no damage
+      return;
+    }
+    this.health -= damage;
+    this.state = "hit";
+    this.stateTimer = 15;
+  }
+
+  update() {
+    if (this.stateTimer > 0) {
+      this.stateTimer--;
+      if (this.stateTimer === 0) {
+        if (this.state === "dodge") {
+          this.canCounter = false; // reset counter chance after dodge ends
         }
-
-        log(`${boxer1.name} health: ${Math.max(boxer1.health, 0)}`);
-        log(`${boxer2.name} health: ${Math.max(boxer2.health, 0)}\n`);
-        round++;
+        this.state = "idle";
       }
-
-      const winner = boxer1.isKnockedOut() ? boxer2.name : boxer1.name;
-      log(`🏆 ${winner} wins the match!`);
     }
+  }
+}
 
-    // Create boxers
-    const boxerA = new Boxer("Mike", 100, 20);
-    const boxerB = new Boxer("Rocky", 100, 20);
+const player1 = new Boxer(100, HEIGHT - 100, "red", {
+  punch: "a",
+  dodge: "s",
+  counter: "d",
+});
+const player2 = new Boxer(WIDTH - 140, HEIGHT - 100, "blue", {
+  punch: "j",
+  dodge: "k",
+  counter: "l",
+});
 
-    // Start simulation
-    simulateFight(boxerA, boxerB);
-  </script>
+const keysDown = new Set();
+
+window.addEventListener("keydown", (e) => {
+  keysDown.add(e.key.toLowerCase());
+
+  // Player 1 controls
+  if (e.key.toLowerCase() === player1.controls.punch) {
+    player1.punch(player2);
+  } else if (e.key.toLowerCase() === player1.controls.dodge) {
+    player1.dodge();
+  } else if (e.key.toLowerCase() === player1.controls.counter) {
+    player1.counter(player2);
+  }
+
+  // Player 2 controls
+  if (e.key.toLowerCase() === player2.controls.punch) {
+    player2.punch(player1);
+  } else if (e.key.toLowerCase() === player2.controls.dodge) {
+    player2.dodge();
+  } else if (e.key.toLowerCase() === player2.controls.counter) {
+    player2.counter(player1);
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  keysDown.delete(e.key.toLowerCase());
+});
+
+function drawHealthBar(boxer, x, y) {
+  ctx.fillStyle = "gray";
+  ctx.fillRect(x, y, 100, 15);
+  ctx.fillStyle = boxer.color;
+  ctx.fillRect(x, y, boxer.health, 15);
+  ctx.strokeStyle = "white";
+  ctx.strokeRect(x, y, 100, 15);
+}
+
+function gameOver(winner) {
+  ctx.fillStyle = "white";
+  ctx.font = "40px Arial";
+  ctx.fillText(`${winner} Wins!`, WIDTH / 2 - 100, HEIGHT / 2);
+}
+
+function update() {
+  player1.update();
+  player2.update();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  player1.draw();
+  player2.draw();
+
+  drawHealthBar(player1, 50, 20);
+  drawHealthBar(player2, WIDTH - 150, 20);
+
+  // Show status
+  const status = document.getElementById("status");
+  status.textContent = `Player1: ${player1.state} | Player2: ${player2.state}`;
+}
+
+function loop() {
+  update();
+  draw();
+
+  if (player1.health <= 0 || player2.health <= 0) {
+    const winner = player1.health <= 0 ? "Player 2" : "Player 1";
+    gameOver(winner);
+  } else {
+    requestAnimationFrame(loop);
+  }
+}
+
+loop();
+</script>
 </body>
 </html>
