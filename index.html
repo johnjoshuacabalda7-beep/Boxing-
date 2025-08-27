@@ -1,1 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Boxing Match Simulator</title>
+</head>
+<body>
+  <h1>Boxing Match Simulator</h1>
+  <pre id="output"></pre>
 
+  <script>
+    const output = document.getElementById("output");
+
+    class Boxer {
+      constructor(name, health, power) {
+        this.name = name;
+        this.health = health;
+        this.power = power;
+      }
+
+      punch(opponent) {
+        const damage = Math.floor(Math.random() * this.power) + 1;
+        opponent.health -= damage;
+        log(`${this.name} punches ${opponent.name} for ${damage} damage!`);
+      }
+
+      isKnockedOut() {
+        return this.health <= 0;
+      }
+    }
+
+    function log(text) {
+      output.textContent += text + "\n";
+    }
+
+    function simulateFight(boxer1, boxer2) {
+      log(`🥊 Fight starts: ${boxer1.name} vs. ${boxer2.name}\n`);
+      let round = 1;
+
+      while (!boxer1.isKnockedOut() && !boxer2.isKnockedOut()) {
+        log(`-- Round ${round} --`);
+        
+        if (Math.random() < 0.5) {
+          boxer1.punch(boxer2);
+        } else {
+          boxer2.punch(boxer1);
+        }
+
+        log(`${boxer1.name} health: ${Math.max(boxer1.health, 0)}`);
+        log(`${boxer2.name} health: ${Math.max(boxer2.health, 0)}\n`);
+        round++;
+      }
+
+      const winner = boxer1.isKnockedOut() ? boxer2.name : boxer1.name;
+      log(`🏆 ${winner} wins the match!`);
+    }
+
+    // Create boxers
+    const boxerA = new Boxer("Mike", 100, 20);
+    const boxerB = new Boxer("Rocky", 100, 20);
+
+    // Start simulation
+    simulateFight(boxerA, boxerB);
+  </script>
+</body>
+</html>
